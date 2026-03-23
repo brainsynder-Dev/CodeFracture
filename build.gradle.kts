@@ -6,7 +6,7 @@ plugins {
 }
 
 group   = "org.bsdevelopment.codefracture"
-version = "0.1.0"
+version = "0.1.1"
 
 repositories {
     mavenCentral()
@@ -49,6 +49,12 @@ tasks.shadowJar {
         else -> "linux"
     }
     archiveClassifier.set("all-$platform")
+}
+
+tasks.processResources {
+    filesMatching("**/build.properties") {
+        expand("version" to project.version)
+    }
 }
 
 apply(from = "gradle/packaging.gradle.kts")

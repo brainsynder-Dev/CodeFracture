@@ -23,7 +23,13 @@ public class SyntaxHighlighter {
             "permits", "yield", "var"
     };
 
-    private static final String KEYWORD_PATTERN = "\\b(" + String.join("|", KEYWORDS) + ")\\b";
+    private static final String KEYWORD_PATTERN    = "\\b(" + String.join("|", KEYWORDS) + ")\\b";
+    private static final String ANNOTATION_PATTERN = "@[\\w]+";
+    private static final String STRING_PATTERN     = "\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'";
+    private static final String TRIPLE_STRING_PATTERN = "\"\"\"[\\s\\S]*?\"\"\"";
+    private static final String COMMENT_PATTERN    = "//[^\n]*|/\\*(.|\\R)*?\\*/";
+    private static final String NUMBER_PATTERN     = "\\b(0[xX][0-9a-fA-F]+[lL]?|\\d+\\.?\\d*([eE][+-]?\\d+)?[fFdDlL]?)\\b";
+    private static final String CLASS_REF_PATTERN  = "\\b[A-Z][a-zA-Z0-9_]*\\b";
     private static final Pattern JAVA_PATTERN = Pattern.compile(
             "(?<TRIPLESTRING>" + TRIPLE_STRING_PATTERN + ")"
                     + "|(?<COMMENT>" + COMMENT_PATTERN + ")"
@@ -33,12 +39,6 @@ public class SyntaxHighlighter {
                     + "|(?<NUMBER>" + NUMBER_PATTERN + ")"
                     + "|(?<CLASSREF>" + CLASS_REF_PATTERN + ")"
     );
-    private static final String ANNOTATION_PATTERN = "@[\\w]+";
-    private static final String STRING_PATTERN = "\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'";
-    private static final String TRIPLE_STRING_PATTERN = "\"\"\"[\\s\\S]*?\"\"\"";
-    private static final String COMMENT_PATTERN = "//[^\n]*|/\\*(.|\\R)*?\\*/";
-    private static final String NUMBER_PATTERN = "\\b(0[xX][0-9a-fA-F]+[lL]?|\\d+\\.?\\d*([eE][+-]?\\d+)?[fFdDlL]?)\\b";
-    private static final String CLASS_REF_PATTERN = "\\b[A-Z][a-zA-Z0-9_]*\\b";
 
     // ── Properties ───────────────────────────────────────────────────────────
     private static final Pattern PROPERTIES_PATTERN = Pattern.compile(
