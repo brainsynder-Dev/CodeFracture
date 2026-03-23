@@ -6,7 +6,7 @@ plugins {
 }
 
 group   = "org.bsdevelopment.codefracture"
-version = "0.1.4"
+version = "0.1.5"
 
 repositories {
     mavenCentral()
@@ -34,6 +34,9 @@ dependencies {
     // Ikonli icons (used by AtlantaFX)
     implementation("org.kordamp.ikonli:ikonli-javafx:12.3.1")
     implementation("org.kordamp.ikonli:ikonli-materialdesign2-pack:12.3.1")
+
+    // GitHub API client (used for update checks)
+    implementation("org.kohsuke:github-api:1.314")
 }
 
 tasks.shadowJar {

@@ -62,6 +62,10 @@ import org.bsdevelopment.codefracture.ui.CodeTab;
 import org.bsdevelopment.codefracture.ui.DiffTab;
 import org.bsdevelopment.codefracture.ui.Differ;
 import org.bsdevelopment.codefracture.utils.PasteClient;
+import org.kohsuke.github.GHAsset;
+import org.kohsuke.github.GHRelease;
+import org.kohsuke.github.GHRepository;
+import org.kohsuke.github.GitHub;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.materialdesign2.MaterialDesignA;
 import org.kordamp.ikonli.materialdesign2.MaterialDesignC;
@@ -86,7 +90,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Enumeration;
@@ -1121,52 +1124,22 @@ public class MainController {
     }
 
     private String[] fetchLatestRelease() throws Exception {
-        HttpClient client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build();
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("https://api.github.com/repos/brainsynder-Dev/CodeFracture/releases/latest"))
-                .header("Accept", "application/vnd.github+json")
-                .header("X-GitHub-Api-Version", "2022-11-28")
-                .header("User-Agent", "CodeFracture/" + BuildInfo.VERSION)
-                .timeout(Duration.ofSeconds(10))
-                .GET()
-                .build();
-        HttpResponse<String> response;
-        try {
-            response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        } catch (Exception e) {
-            throw new Exception("Could not reach GitHub. Please check your internet connection.", e);
+        GitHub github = GitHub.connectAnonymously();
+        GHRepository repo = github.getRepository("brainsynder-Dev/CodeFracture");
+        GHRelease latest = repo.getLatestRelease();
+        if (latest == null)
+            throw new Exception("No GitHub Releases found for this repository.");
+        String version = latest.getTagName().replaceFirst("^v", "");
+        String platform = detectPlatform();
+        String expectedAsset = "CodeFracture-" + version + "-all-" + platform + ".jar";
+        String jarUrl = null;
+        for (GHAsset asset : latest.listAssets().toList()) {
+            if (asset.getName().equals(expectedAsset)) {
+                jarUrl = asset.getBrowserDownloadUrl();
+                break;
+            }
         }
-        if (response.statusCode() == 404)
-            throw new Exception("No releases have been published yet.");
-        if (response.statusCode() != 200)
-            throw new Exception("GitHub returned HTTP " + response.statusCode() + ".");
-        {
-            String json = response.body();
-
-            java.util.regex.Matcher tagMatcher =
-                    java.util.regex.Pattern.compile("\"tag_name\"\\s*:\\s*\"v?([^\"]+)\"").matcher(json);
-            if (!tagMatcher.find()) return null;
-            String version = tagMatcher.group(1);
-
-            String platform = detectPlatform();
-            String expectedAsset = "CodeFracture-" + version + "-all-" + platform + ".jar";
-            java.util.regex.Matcher assetMatcher = java.util.regex.Pattern.compile(
-                    "\"name\"\\s*:\\s*\"" + java.util.regex.Pattern.quote(expectedAsset) + "\"" +
-                    ".*?\"browser_download_url\"\\s*:\\s*\"([^\"]+)\"",
-                    java.util.regex.Pattern.DOTALL
-            ).matcher(json);
-            String jarUrl = assetMatcher.find() ? assetMatcher.group(1) : null;
-
-            java.util.regex.Matcher urlMatcher =
-                    java.util.regex.Pattern.compile("\"html_url\"\\s*:\\s*\"([^\"]+)\"").matcher(json);
-            String htmlUrl = urlMatcher.find() ? urlMatcher.group(1)
-                    : "https://github.com/brainsynder-Dev/CodeFracture/releases/latest";
-
-            return new String[]{version, jarUrl, htmlUrl};
-        }
+        return new String[]{version, jarUrl, latest.getHtmlUrl().toString()};
     }
 
     private static int compareVersions(String a, String b) {
