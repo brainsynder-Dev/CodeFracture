@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-linux:
+    name: Build (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Linux packages and fat JAR
+        run: ./gradlew buildLinuxPackage buildLinuxDeb shadowJar
+
+      - name: Upload Linux tar.gz
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-package
+          path: build/dist/CodeFracture-*-linux.tar.gz
+
+      - name: Upload Linux DEB installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: build/dist/*.deb
+
+      - name: Upload Linux fat JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: fat-jar-linux
+          path: build/libs/CodeFracture-*-all-linux.jar
+
+  build-windows:
+    name: Build (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build Windows packages and fat JAR
+        run: ./gradlew buildWindowsPackage buildWindowsInstaller shadowJar
+        shell: bash
+
+      - name: Upload Windows zip (portable)
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-package
+          path: build/dist/CodeFracture-*-windows.zip
+
+      - name: Upload Windows MSI installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msi
+          path: build/dist/*.msi
+
+      - name: Upload Windows fat JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: fat-jar-windows
+          path: build/libs/CodeFracture-*-all-windows.jar
+
+  release:
+    name: Create GitHub Release
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          pattern: '*'
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/CodeFracture-*-linux.tar.gz
+            dist/*.deb
+            dist/CodeFracture-*-windows.zip
+            dist/*.msi
+            dist/CodeFracture-*-all-linux.jar
+            dist/CodeFracture-*-all-windows.jar

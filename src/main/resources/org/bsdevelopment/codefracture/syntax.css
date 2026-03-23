@@ -1,0 +1,187 @@
+.code-container {
+    -fx-background-color: -color-bg-default;
+}
+
+.code-scroll-pane {
+    -fx-background-color: -color-bg-default;
+    -fx-background: -color-bg-default;
+}
+
+.code-scroll-pane > .scroll-bar:vertical,
+.code-scroll-pane > .scroll-bar:horizontal {
+    -fx-background-color: -color-bg-subtle;
+}
+
+.code-area {
+    -fx-font-family: "JetBrains Mono", "Fira Code", "Consolas", "Courier New", monospace;
+    -fx-font-size: 13px;
+    -fx-background-color: -color-bg-default;
+}
+
+.code-area .text {
+    -fx-fill: -color-fg-default;
+}
+
+.code-area .content {
+    -fx-background-color: -color-bg-default;
+}
+
+.code-area .paragraph-box:has-caret {
+    -fx-background-color: -color-bg-subtle;
+}
+
+.code-area .keyword {
+    -fx-fill: #9966cc;
+    -fx-font-weight: bold;
+}
+
+.code-area .string {
+    -fx-fill: #3a9d4e;
+}
+
+.code-area .comment {
+    -fx-fill: #7d8590;
+    -fx-font-style: italic;
+}
+
+.code-area .annotation {
+    -fx-fill: #c07128;
+}
+
+.code-area .number {
+    -fx-fill: #0d7377;
+}
+
+.code-area .classref {
+    -fx-fill: #2166a0;
+}
+
+.code-area .lineno {
+    -fx-background-color: -color-bg-subtle;
+    -fx-text-fill:        -color-fg-muted;
+    -fx-font-size: 12px;
+    -fx-padding: 0 8px 0 8px;
+    -fx-alignment: center-right;
+}
+
+.jar-tree .tree-cell {
+    -fx-padding: 3px 6px;
+}
+
+.jar-tree .tree-cell .ikonli-font-icon {
+    -fx-icon-size: 14;
+    -fx-icon-color: -color-accent-fg;
+}
+
+.code-area .diff-header {
+    -fx-fill: #79c0ff;
+    -fx-font-weight: bold;
+}
+
+.code-area .diff-hunk {
+    -fx-fill: #d2a8ff;
+    -fx-font-style: italic;
+}
+
+.code-area .diff-added {
+    -fx-fill: #56d364;
+    -rtfx-background-color: rgba(46, 160, 67, 0.18);
+}
+
+.code-area .diff-removed {
+    -fx-fill: #f85149;
+    -rtfx-background-color: rgba(248, 81, 73, 0.18);
+}
+
+.tree-search-icon {
+    -fx-icon-size: 14;
+    -fx-icon-color: -color-fg-muted;
+}
+
+.tree-search-bar {
+    -fx-background-color: -color-bg-inset;
+    -fx-border-color: -color-border-default;
+    -fx-border-width: 0 0 1 0;
+}
+
+.tree-search-field {
+    -fx-background-color: transparent;
+    -fx-border-width: 0;
+    -fx-prompt-text-fill: -color-fg-subtle;
+    -fx-font-size: 12px;
+}
+
+.find-bar {
+    -fx-background-color: -color-bg-inset;
+    -fx-border-color: -color-border-default;
+    -fx-border-width: 1 0 0 0;
+    -fx-min-height: 30px;
+}
+
+.find-field {
+    -fx-font-size: 12px;
+    -fx-pref-height: 24px;
+}
+
+.find-field.find-no-match {
+    -fx-background-color: rgba(248, 81, 73, 0.25);
+    -fx-border-color: #f85149;
+}
+
+.find-nav-btn,
+.find-close-btn {
+    -fx-font-size: 11px;
+    -fx-padding: 2 6 2 6;
+    -fx-pref-height: 24px;
+    -fx-background-color: transparent;
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 3;
+    -fx-cursor: hand;
+}
+
+.find-nav-btn:hover,
+.find-close-btn:hover {
+    -fx-background-color: -color-bg-subtle;
+}
+
+.status-bar {
+    -fx-background-color: -color-bg-inset;
+    -fx-border-color: -color-border-default;
+    -fx-border-width: 1 0 0 0;
+    -fx-font-size: 12px;
+}
+
+.status-bar .ikonli-font-icon {
+    -fx-icon-size: 14;
+    -fx-icon-color: -color-accent-fg;
+}
+
+.fold-gutter {
+    -fx-background-color: -color-bg-subtle;
+    -fx-padding: 0 6px 0 2px;
+    -fx-min-width: 52px;
+    -fx-alignment: center-left;
+}
+
+.fold-arrow {
+    -fx-font-size: 9px;
+    -fx-text-fill: -color-accent-fg;
+    -fx-min-width: 12px;
+    -fx-padding: 0 2px 0 2px;
+}
+
+.lineno-num {
+    -fx-text-fill: -color-fg-muted;
+    -fx-font-size: 12px;
+    -fx-min-width: 32px;
+    -fx-alignment: center-right;
+}
+
+.code-area .import-available {
+    -fx-fill: #79c0ff;
+}
+
+.code-area .import-unavailable {
+    -fx-fill: -color-fg-muted;
+    -fx-font-style: italic;
+}
