@@ -129,6 +129,7 @@ public class Launcher {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(GITHUB_API_LATEST))
                     .header("Accept", "application/vnd.github+json")
+                    .header("X-GitHub-Api-Version", "2022-11-28")
                     .header("User-Agent", "CodeFracture-Launcher/1.0")
                     .timeout(Duration.ofSeconds(10))
                     .GET()

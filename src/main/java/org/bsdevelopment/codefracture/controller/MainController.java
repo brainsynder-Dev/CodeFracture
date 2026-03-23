@@ -924,21 +924,29 @@ public class MainController {
     private void checkForUpdates() {
         statusLabel.setText("Checking for updates…");
         Thread thread = new Thread(() -> {
-            String[] info = fetchLatestRelease();
+            String[] info = null;
+            String fetchError = null;
+            try {
+                info = fetchLatestRelease();
+            } catch (Exception e) {
+                fetchError = e.getMessage();
+            }
+            final String[] finalInfo = info;
+            final String finalError  = fetchError;
             Platform.runLater(() -> {
                 statusLabel.setText("Ready — open or drop a JAR to begin");
-                if (info == null) {
+                if (finalError != null) {
                     Alert alert = new Alert(Alert.AlertType.WARNING);
                     applyAppIcons(alert);
                     alert.setTitle("Check for Updates");
-                    alert.setHeaderText("Could not reach GitHub");
-                    alert.setContentText("Please check your internet connection and try again.");
+                    alert.setHeaderText("Could not check for updates");
+                    alert.setContentText(finalError);
                     alert.showAndWait();
                     return;
                 }
-                String latestVersion = info[0];
-                String jarUrl        = info[1]; // platform JAR download URL, may be null
-                String htmlUrl       = info[2]; // release page URL
+                String latestVersion = finalInfo[0];
+                String jarUrl        = finalInfo[1]; // platform JAR download URL, may be null
+                String htmlUrl       = finalInfo[2]; // release page URL
                 if (compareVersions(latestVersion, BuildInfo.VERSION) > 0) {
                     if (jarUrl != null) {
                         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
@@ -1112,21 +1120,30 @@ public class MainController {
         return "linux";
     }
 
-    private String[] fetchLatestRelease() {
+    private String[] fetchLatestRelease() throws Exception {
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.github.com/repos/brainsynder-Dev/CodeFracture/releases/latest"))
+                .header("Accept", "application/vnd.github+json")
+                .header("X-GitHub-Api-Version", "2022-11-28")
+                .header("User-Agent", "CodeFracture/" + BuildInfo.VERSION)
+                .timeout(Duration.ofSeconds(10))
+                .GET()
+                .build();
+        HttpResponse<String> response;
         try {
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(5))
-                    .followRedirects(HttpClient.Redirect.NORMAL)
-                    .build();
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://api.github.com/repos/brainsynder-Dev/CodeFracture/releases/latest"))
-                    .header("Accept", "application/vnd.github+json")
-                    .header("User-Agent", "CodeFracture/" + BuildInfo.VERSION)
-                    .timeout(Duration.ofSeconds(10))
-                    .GET()
-                    .build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) return null;
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {
+            throw new Exception("Could not reach GitHub. Please check your internet connection.", e);
+        }
+        if (response.statusCode() == 404)
+            throw new Exception("No releases have been published yet.");
+        if (response.statusCode() != 200)
+            throw new Exception("GitHub returned HTTP " + response.statusCode() + ".");
+        {
             String json = response.body();
 
             java.util.regex.Matcher tagMatcher =
@@ -1149,8 +1166,6 @@ public class MainController {
                     : "https://github.com/brainsynder-Dev/CodeFracture/releases/latest";
 
             return new String[]{version, jarUrl, htmlUrl};
-        } catch (Exception ignored) {
-            return null;
         }
     }
 
