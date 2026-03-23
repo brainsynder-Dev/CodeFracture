@@ -78,7 +78,15 @@ import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Enumeration;
@@ -352,9 +360,12 @@ public class MainController {
         settingsMenu.getItems().addAll(skipSplashItem, showCommentsItem);
 
         Menu helpMenu = new Menu("_Help");
+        MenuItem checkUpdates = new MenuItem("Check for Updates…");
+        checkUpdates.setGraphic(new FontIcon(MaterialDesignU.UPDATE));
+        checkUpdates.setOnAction(e -> checkForUpdates());
         MenuItem about = new MenuItem("About CodeFracture");
         about.setOnAction(e -> showAbout());
-        helpMenu.getItems().add(about);
+        helpMenu.getItems().addAll(checkUpdates, new SeparatorMenuItem(), about);
 
         menuBar.getMenus().addAll(fileMenu, viewMenu, settingsMenu, helpMenu);
         return menuBar;
@@ -908,6 +919,255 @@ public class MainController {
         dialog.getDialogPane().setContent(content);
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
         dialog.showAndWait();
+    }
+
+    private void checkForUpdates() {
+        statusLabel.setText("Checking for updates…");
+        Thread thread = new Thread(() -> {
+            String[] info = fetchLatestRelease();
+            Platform.runLater(() -> {
+                statusLabel.setText("Ready — open or drop a JAR to begin");
+                if (info == null) {
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    applyAppIcons(alert);
+                    alert.setTitle("Check for Updates");
+                    alert.setHeaderText("Could not reach GitHub");
+                    alert.setContentText("Please check your internet connection and try again.");
+                    alert.showAndWait();
+                    return;
+                }
+                String latestVersion = info[0];
+                String jarUrl        = info[1]; // platform JAR download URL, may be null
+                String htmlUrl       = info[2]; // release page URL
+                if (compareVersions(latestVersion, BuildInfo.VERSION) > 0) {
+                    if (jarUrl != null) {
+                        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+                        applyAppIcons(confirm);
+                        confirm.setTitle("Update Available");
+                        confirm.setHeaderText("CodeFracture " + latestVersion + " is available");
+                        confirm.setContentText("You are running v" + BuildInfo.VERSION
+                                + ".\nDownload and restart to apply the update?");
+                        confirm.showAndWait().ifPresent(btn -> {
+                            if (btn == ButtonType.OK) downloadAndRestart(latestVersion, jarUrl);
+                        });
+                    } else {
+                        // No platform JAR in this release — fall back to browser
+                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                        applyAppIcons(alert);
+                        alert.setTitle("Update Available");
+                        alert.setHeaderText("CodeFracture " + latestVersion + " is available");
+                        alert.setContentText("Click OK to open the download page.");
+                        alert.getButtonTypes().setAll(ButtonType.OK, ButtonType.CANCEL);
+                        alert.showAndWait().ifPresent(btn -> {
+                            if (btn == ButtonType.OK) {
+                                try { Desktop.getDesktop().browse(URI.create(htmlUrl)); }
+                                catch (Exception ignored) {}
+                            }
+                        });
+                    }
+                } else {
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    applyAppIcons(alert);
+                    alert.setTitle("Check for Updates");
+                    alert.setHeaderText("You're up to date");
+                    alert.setContentText("CodeFracture v" + BuildInfo.VERSION + " is the latest version.");
+                    alert.showAndWait();
+                }
+            });
+        }, "update-check");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void downloadAndRestart(String version, String jarUrl) {
+        String platform = detectPlatform();
+        Path destDir  = AppConfig.getConfigDir().resolve("app");
+        Path destFile = destDir.resolve("CodeFracture-" + version + "-all-" + platform + ".jar");
+        Path tmpFile  = destDir.resolve(".download-" + version + ".tmp");
+
+        try {
+            Files.createDirectories(destDir);
+        } catch (IOException e) {
+            showError("Download Failed", "Cannot create app directory: " + e.getMessage());
+            return;
+        }
+
+        Dialog<ButtonType> dlDialog = new Dialog<>();
+        applyAppIcons(dlDialog);
+        dlDialog.setTitle("Downloading Update");
+        dlDialog.setHeaderText("Downloading CodeFracture " + version + "…");
+        ProgressBar dlProgress = new ProgressBar(-1);
+        dlProgress.setPrefWidth(360);
+        Label dlStatus = new Label("Connecting…");
+        VBox dlContent = new VBox(10, dlProgress, dlStatus);
+        dlContent.setPrefWidth(380);
+        dlDialog.getDialogPane().setContent(dlContent);
+        dlDialog.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);
+
+        HttpClient client = HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.ALWAYS)
+                .build();
+        HttpRequest dlRequest = HttpRequest.newBuilder()
+                .uri(URI.create(jarUrl))
+                .header("User-Agent", "CodeFracture/" + BuildInfo.VERSION)
+                .GET()
+                .build();
+
+        dlStatus.setText("Downloading…");
+        CompletableFuture<HttpResponse<Path>> future =
+                client.sendAsync(dlRequest, HttpResponse.BodyHandlers.ofFile(tmpFile));
+
+        future.thenAccept(resp -> {
+            try {
+                Files.move(tmpFile, destFile, StandardCopyOption.REPLACE_EXISTING);
+                cleanOldJars(destDir, destFile, platform);
+            } catch (IOException e) {
+                Platform.runLater(() -> {
+                    dlDialog.close();
+                    showError("Download Failed", e.getMessage());
+                });
+                return;
+            }
+            Platform.runLater(() -> {
+                dlDialog.close();
+                restartApp(destFile);
+            });
+        }).exceptionally(ex -> {
+            try { Files.deleteIfExists(tmpFile); } catch (IOException ignored) {}
+            boolean cancelled = ex instanceof java.util.concurrent.CancellationException
+                    || ex.getCause() instanceof java.util.concurrent.CancellationException;
+            if (!cancelled) {
+                String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+                Platform.runLater(() -> {
+                    dlDialog.close();
+                    showError("Download Failed", msg);
+                });
+            }
+            return null;
+        });
+
+        dlDialog.showAndWait();
+        if (!future.isDone()) {
+            future.cancel(true);
+            try { Files.deleteIfExists(tmpFile); } catch (IOException ignored) {}
+        }
+    }
+
+    private static void cleanOldJars(Path dir, Path keep, String platform) {
+        java.util.regex.Pattern pat = java.util.regex.Pattern.compile(
+                "CodeFracture-(.+)-all-" + java.util.regex.Pattern.quote(platform) + "\\.jar");
+        try (var files = Files.list(dir)) {
+            files.filter(p -> pat.matcher(p.getFileName().toString()).matches())
+                 .filter(p -> !p.equals(keep))
+                 .forEach(p -> { try { Files.deleteIfExists(p); } catch (IOException ignored) {} });
+        } catch (IOException ignored) {}
+    }
+
+    private void restartApp(Path newJar) {
+        try {
+            String javaExe = resolveJavaExe();
+            Path launcherJar = findLauncherJar();
+            List<String> cmd = launcherJar != null
+                    ? List.of(javaExe, "-jar", launcherJar.toString())
+                    : List.of(javaExe, "-jar", newJar.toAbsolutePath().toString());
+            new ProcessBuilder(cmd).inheritIO().start();
+            Platform.exit();
+            System.exit(0);
+        } catch (Exception e) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            applyAppIcons(alert);
+            alert.setTitle("Restart Required");
+            alert.setHeaderText("Update downloaded successfully");
+            alert.setContentText("Please restart CodeFracture to apply the update.");
+            alert.showAndWait();
+        }
+    }
+
+    private static String resolveJavaExe() {
+        String javaHome = System.getProperty("java.home");
+        boolean win = detectPlatform().equals("windows");
+        if (javaHome != null) {
+            Path candidate = Path.of(javaHome, "bin", win ? "javaw.exe" : "java");
+            if (Files.exists(candidate)) return candidate.toString();
+        }
+        return win ? "javaw" : "java";
+    }
+
+    private static Path findLauncherJar() {
+        try {
+            URI loc = MainController.class.getProtectionDomain().getCodeSource().getLocation().toURI();
+            Path jarDir = Path.of(loc).getParent();
+            if (jarDir != null) {
+                Path candidate = jarDir.resolve("Launcher.jar");
+                if (Files.exists(candidate)) return candidate;
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private static String detectPlatform() {
+        String os = System.getProperty("os.name", "").toLowerCase();
+        if (os.contains("win")) return "windows";
+        if (os.contains("mac")) return "mac";
+        return "linux";
+    }
+
+    private String[] fetchLatestRelease() {
+        try {
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .followRedirects(HttpClient.Redirect.NORMAL)
+                    .build();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.github.com/repos/brainsynder-Dev/CodeFracture/releases/latest"))
+                    .header("Accept", "application/vnd.github+json")
+                    .header("User-Agent", "CodeFracture/" + BuildInfo.VERSION)
+                    .timeout(Duration.ofSeconds(10))
+                    .GET()
+                    .build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) return null;
+            String json = response.body();
+
+            java.util.regex.Matcher tagMatcher =
+                    java.util.regex.Pattern.compile("\"tag_name\"\\s*:\\s*\"v?([^\"]+)\"").matcher(json);
+            if (!tagMatcher.find()) return null;
+            String version = tagMatcher.group(1);
+
+            String platform = detectPlatform();
+            String expectedAsset = "CodeFracture-" + version + "-all-" + platform + ".jar";
+            java.util.regex.Matcher assetMatcher = java.util.regex.Pattern.compile(
+                    "\"name\"\\s*:\\s*\"" + java.util.regex.Pattern.quote(expectedAsset) + "\"" +
+                    ".*?\"browser_download_url\"\\s*:\\s*\"([^\"]+)\"",
+                    java.util.regex.Pattern.DOTALL
+            ).matcher(json);
+            String jarUrl = assetMatcher.find() ? assetMatcher.group(1) : null;
+
+            java.util.regex.Matcher urlMatcher =
+                    java.util.regex.Pattern.compile("\"html_url\"\\s*:\\s*\"([^\"]+)\"").matcher(json);
+            String htmlUrl = urlMatcher.find() ? urlMatcher.group(1)
+                    : "https://github.com/brainsynder-Dev/CodeFracture/releases/latest";
+
+            return new String[]{version, jarUrl, htmlUrl};
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static int compareVersions(String a, String b) {
+        String[] aParts = a.split("[.\\-]");
+        String[] bParts = b.split("[.\\-]");
+        int len = Math.min(aParts.length, bParts.length);
+        for (int i = 0; i < len; i++) {
+            int cmp;
+            try {
+                cmp = Integer.compare(Integer.parseInt(aParts[i]), Integer.parseInt(bParts[i]));
+            } catch (NumberFormatException e) {
+                cmp = aParts[i].compareTo(bParts[i]);
+            }
+            if (cmp != 0) return cmp;
+        }
+        return Integer.compare(aParts.length, bParts.length);
     }
 
     private void showError(String title, String message) {
