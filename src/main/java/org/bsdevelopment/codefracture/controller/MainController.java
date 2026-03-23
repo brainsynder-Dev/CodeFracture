@@ -191,10 +191,18 @@ public class MainController {
         buttons.setAlignment(Pos.CENTER_RIGHT);
         buttons.setPadding(new Insets(2, 8, 2, 8));
 
+        Button configFolderBtn = new Button("Open Config Folder");
+        configFolderBtn.setGraphic(new FontIcon(MaterialDesignF.FOLDER));
+        configFolderBtn.setOnAction(e -> {
+            try {
+                Desktop.getDesktop().open(AppConfig.getConfigDir().toFile());
+            } catch (Exception ex) { /* ignore */ }
+        });
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox topBar = new HBox(menuBar, spacer, buttons);
+        HBox topBar = new HBox(menuBar, configFolderBtn, spacer, buttons);
         topBar.setAlignment(Pos.CENTER_LEFT);
         topBar.getStyleClass().add("menu-bar");
         return topBar;
@@ -884,7 +892,8 @@ public class MainController {
 
         Label builtWith = new Label(
                 "Built with:\n" +
-                        "  \u2022 JavaFX 21 + AtlantaFX 2.1.0\n" +
+                        "  \u2022 JavaFX 21\n" +
+                        "  \u2022 AtlantaFX 2.1.0\n" +
                         "  \u2022 Vineflower (Fernflower fork)\n" +
                         "  \u2022 RichTextFX"
         );
@@ -893,15 +902,7 @@ public class MainController {
                         "Drag & drop JAR files directly onto the window."
         );
 
-        Button configBtn = new Button("Open Config Folder");
-        configBtn.setGraphic(new FontIcon(MaterialDesignF.FOLDER));
-        configBtn.setOnAction(e -> {
-            try {
-                Desktop.getDesktop().open(AppConfig.getConfigDir().toFile());
-            } catch (Exception ex) { /* ignore */ }
-        });
-
-        VBox content = new VBox(12, builtWith, new Separator(), hint, configBtn);
+        VBox content = new VBox(12, builtWith, new Separator(), hint);
         content.setPrefWidth(400);
 
         dialog.getDialogPane().setContent(content);
