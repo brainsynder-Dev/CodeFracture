@@ -31,7 +31,8 @@ public final class ObfuscationDetector {
                         : name.substring(0, name.length() - 6);
                 if (simple.length() <= 2) short_++;
             }
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
 
         if (total < MIN_CLASS_COUNT) return false;
         return (double) short_ / total >= SHORT_NAME_THRESHOLD;

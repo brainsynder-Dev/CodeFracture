@@ -8,10 +8,6 @@ import java.util.List;
 
 /** Scans Vineflower-decompiled Java source and returns foldable regions. */
 public final class FoldDetector {
-
-    private FoldDetector() {
-    }
-
     public static List<FoldRegion> detect(String source) {
         String[] lines = source.split("\n", -1);
         List<FoldRegion> regions = new ArrayList<>();

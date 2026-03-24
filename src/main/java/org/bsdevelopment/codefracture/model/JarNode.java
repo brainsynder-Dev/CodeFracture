@@ -14,9 +14,11 @@ public class JarNode {
     private final File jarFileB;
     /** The fullPath of the comparison tree root this node belongs to. */
     private final String comparisonRootPath;
+
     public JarNode(String name, String fullPath, Type type, File jarFile) {
         this(name, fullPath, type, jarFile, null, null, null);
     }
+
     public JarNode(String name, String fullPath, Type type) {
         this(name, fullPath, type, null, null, null, null);
     }

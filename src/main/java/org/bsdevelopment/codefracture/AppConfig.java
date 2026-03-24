@@ -37,9 +37,6 @@ public final class AppConfig {
         load();
     }
 
-    private AppConfig() {
-    }
-
     public static String get(String key, String defaultValue) {
         return PROPS.getProperty(key, defaultValue);
     }

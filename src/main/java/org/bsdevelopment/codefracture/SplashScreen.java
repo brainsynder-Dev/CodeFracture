@@ -59,7 +59,8 @@ public class SplashScreen {
 
         try (var stream = SplashScreen.class.getResourceAsStream("/logo_256.png")) {
             if (stream != null) stage.getIcons().add(new Image(stream));
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         ImageView intactView = makeLogoView("/logo_intact_256.png");
         ImageView fracturedView = makeLogoView("/logo_256.png");

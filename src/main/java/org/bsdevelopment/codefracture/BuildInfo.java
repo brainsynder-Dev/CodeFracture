@@ -19,6 +19,4 @@ public final class BuildInfo {
         }
         VERSION = v;
     }
-
-    private BuildInfo() {}
 }

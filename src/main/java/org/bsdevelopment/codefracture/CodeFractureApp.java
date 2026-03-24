@@ -39,6 +39,19 @@ public class CodeFractureApp extends Application {
         launch(args);
     }
 
+    private static Screen screenContainingCursor() {
+        try {
+            Point p = MouseInfo.getPointerInfo().getLocation();
+            double x = p.x, y = p.y;
+            return Screen.getScreens().stream()
+                    .filter(s -> s.getBounds().contains(x, y))
+                    .findFirst()
+                    .orElse(Screen.getPrimary());
+        } catch (Exception ignored) {
+        }
+        return Screen.getPrimary();
+    }
+
     @Override
     public void start(Stage primaryStage) {
         Theme theme = resolveTheme(AppConfig.get(AppConfig.THEME, "Nord Dark"));
@@ -58,22 +71,11 @@ public class CodeFractureApp extends Application {
         }
     }
 
-    private static Screen screenContainingCursor() {
-        try {
-            Point p = MouseInfo.getPointerInfo().getLocation();
-            double x = p.x, y = p.y;
-            return Screen.getScreens().stream()
-                    .filter(s -> s.getBounds().contains(x, y))
-                    .findFirst()
-                    .orElse(Screen.getPrimary());
-        } catch (Exception ignored) {}
-        return Screen.getPrimary();
-    }
-
     private void setupMainWindow(Stage primaryStage) {
         try (var stream = getClass().getResourceAsStream("/logo_256.png")) {
             if (stream != null) primaryStage.getIcons().add(new Image(stream));
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         MainController controller = new MainController(primaryStage);
         Scene scene = new Scene(controller.getRoot(), MAIN_W, MAIN_H);

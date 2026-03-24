@@ -192,6 +192,68 @@ public class MainController {
         setupDragAndDrop();
     }
 
+    private static void cleanOldJars(Path dir, Path keep, String platform) {
+        java.util.regex.Pattern pat = java.util.regex.Pattern.compile(
+                "CodeFracture-(.+)-all-" + java.util.regex.Pattern.quote(platform) + "\\.jar");
+        try (var files = Files.list(dir)) {
+            files.filter(p -> pat.matcher(p.getFileName().toString()).matches())
+                    .filter(p -> !p.equals(keep))
+                    .forEach(p -> {
+                        try {
+                            Files.deleteIfExists(p);
+                        } catch (IOException ignored) {
+                        }
+                    });
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static String resolveJavaExe() {
+        String javaHome = System.getProperty("java.home");
+        boolean win = detectPlatform().equals("windows");
+        if (javaHome != null) {
+            Path candidate = Path.of(javaHome, "bin", win ? "javaw.exe" : "java");
+            if (Files.exists(candidate)) return candidate.toString();
+        }
+        return win ? "javaw" : "java";
+    }
+
+    private static Path findLauncherJar() {
+        try {
+            URI loc = MainController.class.getProtectionDomain().getCodeSource().getLocation().toURI();
+            Path jarDir = Path.of(loc).getParent();
+            if (jarDir != null) {
+                Path candidate = jarDir.resolve("Launcher.jar");
+                if (Files.exists(candidate)) return candidate;
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    private static String detectPlatform() {
+        String os = System.getProperty("os.name", "").toLowerCase();
+        if (os.contains("win")) return "windows";
+        if (os.contains("mac")) return "mac";
+        return "linux";
+    }
+
+    private static int compareVersions(String a, String b) {
+        String[] aParts = a.split("[.\\-]");
+        String[] bParts = b.split("[.\\-]");
+        int len = Math.min(aParts.length, bParts.length);
+        for (int i = 0; i < len; i++) {
+            int cmp;
+            try {
+                cmp = Integer.compare(Integer.parseInt(aParts[i]), Integer.parseInt(bParts[i]));
+            } catch (NumberFormatException e) {
+                cmp = aParts[i].compareTo(bParts[i]);
+            }
+            if (cmp != 0) return cmp;
+        }
+        return Integer.compare(aParts.length, bParts.length);
+    }
+
     private HBox buildTopBar() {
         MenuBar menuBar = buildMenuBar();
         HBox.setHgrow(menuBar, Priority.NEVER);
@@ -857,7 +919,10 @@ public class MainController {
 
         if (selected instanceof DiffTab dt) {
             String content = dt.getDiffText();
-            if (content.isBlank()) { showError("Export", "Tab has no content yet."); return; }
+            if (content.isBlank()) {
+                showError("Export", "Tab has no content yet.");
+                return;
+            }
             String defaultName = dt.getText().replace(".java", ".diff");
             ButtonType saveBtn = new ButtonType("Save as File");
             ButtonType pasteBtn = new ButtonType("Upload to Paste");
@@ -881,9 +946,9 @@ public class MainController {
             return;
         }
 
-        ButtonType classBtn  = new ButtonType("This Class (.java)");
-        ButtonType jarBtn    = new ButtonType("Whole JAR (.zip)");
-        ButtonType pasteBtn  = new ButtonType("Upload to Paste");
+        ButtonType classBtn = new ButtonType("This Class (.java)");
+        ButtonType jarBtn = new ButtonType("Whole JAR (.zip)");
+        ButtonType pasteBtn = new ButtonType("Upload to Paste");
 
         List<ButtonType> buttons = new ArrayList<>();
         if (ct != null && !ct.isResource()) buttons.add(classBtn);
@@ -901,14 +966,20 @@ public class MainController {
         choice.showAndWait().ifPresent(bt -> {
             if (bt == classBtn) {
                 String content = ct.getCodeArea().getText();
-                if (content.isBlank()) { showError("Export", "Tab has no content yet."); return; }
+                if (content.isBlank()) {
+                    showError("Export", "Tab has no content yet.");
+                    return;
+                }
                 String name = ct.getText().endsWith(".java") ? ct.getText() : ct.getText() + ".java";
                 saveTextFile(content, name, "Java Files", "*.java");
             } else if (bt == jarBtn) {
                 exportWholeJar(pickJarForExport(ct));
             } else if (bt == pasteBtn) {
                 String content = ct.getCodeArea().getText();
-                if (content.isBlank()) { showError("Export", "Tab has no content yet."); return; }
+                if (content.isBlank()) {
+                    showError("Export", "Tab has no content yet.");
+                    return;
+                }
                 uploadToPaste(content, ct.getText(), "java");
             }
         });
@@ -1005,7 +1076,9 @@ public class MainController {
                         bar.setProgress((double) pct / total);
                     });
                     String src;
-                    try { src = decompiler.decompile(cls); } catch (Exception ex) {
+                    try {
+                        src = decompiler.decompile(cls);
+                    } catch (Exception ex) {
                         src = "// Decompilation failed for: " + cls + "\n// " + ex.getMessage();
                     }
                     String entryName = cls + ".java";
@@ -1090,7 +1163,7 @@ public class MainController {
                 fetchError = e.getMessage();
             }
             final String[] finalInfo = info;
-            final String finalError  = fetchError;
+            final String finalError = fetchError;
             Platform.runLater(() -> {
                 statusLabel.setText("Ready — open or drop a JAR to begin");
                 if (finalError != null) {
@@ -1103,8 +1176,8 @@ public class MainController {
                     return;
                 }
                 String latestVersion = finalInfo[0];
-                String jarUrl        = finalInfo[1]; // platform JAR download URL, may be null
-                String htmlUrl       = finalInfo[2]; // release page URL
+                String jarUrl = finalInfo[1]; // platform JAR download URL, may be null
+                String htmlUrl = finalInfo[2]; // release page URL
                 if (compareVersions(latestVersion, BuildInfo.VERSION) > 0) {
                     if (jarUrl != null) {
                         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
@@ -1126,8 +1199,10 @@ public class MainController {
                         alert.getButtonTypes().setAll(ButtonType.OK, ButtonType.CANCEL);
                         alert.showAndWait().ifPresent(btn -> {
                             if (btn == ButtonType.OK) {
-                                try { Desktop.getDesktop().browse(URI.create(htmlUrl)); }
-                                catch (Exception ignored) {}
+                                try {
+                                    Desktop.getDesktop().browse(URI.create(htmlUrl));
+                                } catch (Exception ignored) {
+                                }
                             }
                         });
                     }
@@ -1147,9 +1222,9 @@ public class MainController {
 
     private void downloadAndRestart(String version, String jarUrl) {
         String platform = detectPlatform();
-        Path destDir  = AppConfig.getConfigDir().resolve("app");
+        Path destDir = AppConfig.getConfigDir().resolve("app");
         Path destFile = destDir.resolve("CodeFracture-" + version + "-all-" + platform + ".jar");
-        Path tmpFile  = destDir.resolve(".download-" + version + ".tmp");
+        Path tmpFile = destDir.resolve(".download-" + version + ".tmp");
 
         try {
             Files.createDirectories(destDir);
@@ -1199,7 +1274,10 @@ public class MainController {
                 restartApp(destFile);
             });
         }).exceptionally(ex -> {
-            try { Files.deleteIfExists(tmpFile); } catch (IOException ignored) {}
+            try {
+                Files.deleteIfExists(tmpFile);
+            } catch (IOException ignored) {
+            }
             boolean cancelled = ex instanceof java.util.concurrent.CancellationException
                     || ex.getCause() instanceof java.util.concurrent.CancellationException;
             if (!cancelled) {
@@ -1215,18 +1293,11 @@ public class MainController {
         dlDialog.showAndWait();
         if (!future.isDone()) {
             future.cancel(true);
-            try { Files.deleteIfExists(tmpFile); } catch (IOException ignored) {}
+            try {
+                Files.deleteIfExists(tmpFile);
+            } catch (IOException ignored) {
+            }
         }
-    }
-
-    private static void cleanOldJars(Path dir, Path keep, String platform) {
-        java.util.regex.Pattern pat = java.util.regex.Pattern.compile(
-                "CodeFracture-(.+)-all-" + java.util.regex.Pattern.quote(platform) + "\\.jar");
-        try (var files = Files.list(dir)) {
-            files.filter(p -> pat.matcher(p.getFileName().toString()).matches())
-                 .filter(p -> !p.equals(keep))
-                 .forEach(p -> { try { Files.deleteIfExists(p); } catch (IOException ignored) {} });
-        } catch (IOException ignored) {}
     }
 
     private void restartApp(Path newJar) {
@@ -1249,35 +1320,6 @@ public class MainController {
         }
     }
 
-    private static String resolveJavaExe() {
-        String javaHome = System.getProperty("java.home");
-        boolean win = detectPlatform().equals("windows");
-        if (javaHome != null) {
-            Path candidate = Path.of(javaHome, "bin", win ? "javaw.exe" : "java");
-            if (Files.exists(candidate)) return candidate.toString();
-        }
-        return win ? "javaw" : "java";
-    }
-
-    private static Path findLauncherJar() {
-        try {
-            URI loc = MainController.class.getProtectionDomain().getCodeSource().getLocation().toURI();
-            Path jarDir = Path.of(loc).getParent();
-            if (jarDir != null) {
-                Path candidate = jarDir.resolve("Launcher.jar");
-                if (Files.exists(candidate)) return candidate;
-            }
-        } catch (Exception ignored) {}
-        return null;
-    }
-
-    private static String detectPlatform() {
-        String os = System.getProperty("os.name", "").toLowerCase();
-        if (os.contains("win")) return "windows";
-        if (os.contains("mac")) return "mac";
-        return "linux";
-    }
-
     private String[] fetchLatestRelease() throws Exception {
         GitHub github = GitHub.connectAnonymously();
         GHRepository repo = github.getRepository("brainsynder-Dev/CodeFracture");
@@ -1294,23 +1336,7 @@ public class MainController {
                 break;
             }
         }
-        return new String[]{version, jarUrl, latest.getHtmlUrl().toString()};
-    }
-
-    private static int compareVersions(String a, String b) {
-        String[] aParts = a.split("[.\\-]");
-        String[] bParts = b.split("[.\\-]");
-        int len = Math.min(aParts.length, bParts.length);
-        for (int i = 0; i < len; i++) {
-            int cmp;
-            try {
-                cmp = Integer.compare(Integer.parseInt(aParts[i]), Integer.parseInt(bParts[i]));
-            } catch (NumberFormatException e) {
-                cmp = aParts[i].compareTo(bParts[i]);
-            }
-            if (cmp != 0) return cmp;
-        }
-        return Integer.compare(aParts.length, bParts.length);
+        return new String[]{ version, jarUrl, latest.getHtmlUrl().toString() };
     }
 
     private void showError(String title, String message) {

@@ -6,11 +6,7 @@ import java.util.List;
 
 /** Static utility that computes unified-diff strings from two text documents. */
 public final class Differ {
-
     static final int CONTEXT = 3;
-
-    private Differ() {
-    }
 
     /** Unified diff — only sections that changed, with {@value #CONTEXT} context lines each side. */
     public static String unifiedDiff(String textA, String textB, String labelA, String labelB) {

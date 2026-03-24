@@ -49,6 +49,7 @@ public class CompareResultTab extends Tab {
     private volatile boolean cancelled = false;
     private VineflowerDecompiler dA;
     private VineflowerDecompiler dB;
+
     public CompareResultTab(File jarFileA, File jarFileB) {
         this.jarFileA = jarFileA;
         this.jarFileB = jarFileB;

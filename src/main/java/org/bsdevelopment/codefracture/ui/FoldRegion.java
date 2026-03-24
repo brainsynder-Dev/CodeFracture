@@ -6,6 +6,7 @@ public class FoldRegion {
     /** Exclusive end — lines [startLine, endLine) belong to this region. */
     public final int endLine;
     public boolean folded = false;
+
     public FoldRegion(Type type, int startLine, int endLine) {
         this.type = type;
         this.startLine = startLine;
