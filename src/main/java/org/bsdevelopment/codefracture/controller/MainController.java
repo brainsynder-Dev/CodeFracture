@@ -855,62 +855,178 @@ public class MainController {
     private void exportCurrentTab() {
         Tab selected = tabPane.getSelectionModel().getSelectedItem();
 
-        String content;
-        String defaultName;
-        boolean isDiff;
-
-        if (selected instanceof CodeTab ct) {
-            content = ct.getCodeArea().getText();
-            defaultName = ct.getText().endsWith(".java") ? ct.getText() : ct.getText() + ".java";
-            isDiff = false;
-        } else if (selected instanceof DiffTab dt) {
-            content = dt.getDiffText();
-            defaultName = dt.getText().replace(".java", ".diff");
-            isDiff = true;
-        } else {
-            showError("Export", "No exportable tab is selected.");
+        if (selected instanceof DiffTab dt) {
+            String content = dt.getDiffText();
+            if (content.isBlank()) { showError("Export", "Tab has no content yet."); return; }
+            String defaultName = dt.getText().replace(".java", ".diff");
+            ButtonType saveBtn = new ButtonType("Save as File");
+            ButtonType pasteBtn = new ButtonType("Upload to Paste");
+            Alert choice = new Alert(Alert.AlertType.NONE, "Choose how to export \"" + dt.getText() + "\":");
+            choice.initOwner(primaryStage);
+            choice.setTitle("Export");
+            choice.setHeaderText(null);
+            choice.getButtonTypes().setAll(saveBtn, pasteBtn, ButtonType.CANCEL);
+            choice.showAndWait().ifPresent(bt -> {
+                if (bt == saveBtn) saveTextFile(content, defaultName, "Diff Files", "*.diff");
+                else if (bt == pasteBtn) uploadToPaste(content, dt.getText(), "diff");
+            });
             return;
         }
 
-        if (content.isBlank()) {
-            showError("Export", "Tab has no content yet.");
+        // No tab selected or not a code tab — offer whole-JAR export if JARs are loaded
+        CodeTab ct = (selected instanceof CodeTab c) ? c : null;
+
+        if (ct == null && decompilers.isEmpty()) {
+            showError("Export", "No JAR is loaded.");
             return;
         }
 
-        ButtonType saveBtn = new ButtonType("Save as File");
-        ButtonType pasteBtn = new ButtonType("Upload to Paste");
+        ButtonType classBtn  = new ButtonType("This Class (.java)");
+        ButtonType jarBtn    = new ButtonType("Whole JAR (.zip)");
+        ButtonType pasteBtn  = new ButtonType("Upload to Paste");
+
+        List<ButtonType> buttons = new ArrayList<>();
+        if (ct != null && !ct.isResource()) buttons.add(classBtn);
+        if (!decompilers.isEmpty()) buttons.add(jarBtn);
+        if (ct != null) buttons.add(pasteBtn);
+        buttons.add(ButtonType.CANCEL);
+
         Alert choice = new Alert(Alert.AlertType.NONE,
-                "Choose how to export \"" + selected.getText() + "\":");
+                ct != null ? "Choose how to export \"" + ct.getText() + "\":" : "Export a JAR as source ZIP:");
         choice.initOwner(primaryStage);
-        choice.setTitle("Export");
+        choice.setTitle("Export Source");
         choice.setHeaderText(null);
-        choice.getButtonTypes().setAll(saveBtn, pasteBtn, ButtonType.CANCEL);
+        choice.getButtonTypes().setAll(buttons);
+
         choice.showAndWait().ifPresent(bt -> {
-            if (bt == saveBtn) {
-                FileChooser chooser = new FileChooser();
-                chooser.setTitle("Export");
-                chooser.setInitialFileName(defaultName);
-                chooser.setInitialDirectory(AppConfig.getLastOpenedDir());
-                if (isDiff) {
-                    chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Diff Files", "*.diff"));
-                } else if (selected instanceof CodeTab ct && !ct.isResource()) {
-                    chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Java Files", "*.java"));
-                }
-                chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("All Files", "*.*"));
-                File dest = chooser.showSaveDialog(primaryStage);
-                if (dest == null) return;
-                try {
-                    java.nio.file.Files.writeString(dest.toPath(), content);
-                    AppConfig.setLastOpenedDir(dest);
-                    setStatus("Exported: " + dest.getName());
-                } catch (Exception e) {
-                    showError("Export Failed", e.getMessage());
-                }
+            if (bt == classBtn) {
+                String content = ct.getCodeArea().getText();
+                if (content.isBlank()) { showError("Export", "Tab has no content yet."); return; }
+                String name = ct.getText().endsWith(".java") ? ct.getText() : ct.getText() + ".java";
+                saveTextFile(content, name, "Java Files", "*.java");
+            } else if (bt == jarBtn) {
+                exportWholeJar(pickJarForExport(ct));
             } else if (bt == pasteBtn) {
-                String lang = isDiff ? "diff" : "java";
-                uploadToPaste(content, selected.getText(), lang);
+                String content = ct.getCodeArea().getText();
+                if (content.isBlank()) { showError("Export", "Tab has no content yet."); return; }
+                uploadToPaste(content, ct.getText(), "java");
             }
         });
+    }
+
+    private VineflowerDecompiler pickJarForExport(CodeTab ct) {
+        if (decompilers.size() == 1) return decompilers.values().iterator().next();
+
+        // Try to infer jar from the active tab key
+        if (ct != null) {
+            Optional<String> jarKey = openTabs.entrySet().stream()
+                    .filter(e -> e.getValue() == ct && e.getKey().contains("!"))
+                    .map(e -> e.getKey().substring(0, e.getKey().lastIndexOf('!')))
+                    .findFirst();
+            if (jarKey.isPresent()) {
+                VineflowerDecompiler d = decompilers.get(jarKey.get());
+                if (d != null) return d;
+            }
+        }
+
+        // Multiple JARs and can't infer — ask user
+        List<String> names = decompilers.values().stream()
+                .map(d -> d.getJarFile().getName())
+                .toList();
+        ChoiceDialog<String> picker = new ChoiceDialog<>(names.get(0), names);
+        picker.initOwner(primaryStage);
+        picker.setTitle("Select JAR");
+        picker.setHeaderText("Which JAR do you want to export?");
+        picker.setContentText("JAR:");
+        return picker.showAndWait()
+                .flatMap(name -> decompilers.values().stream()
+                        .filter(d -> d.getJarFile().getName().equals(name))
+                        .findFirst())
+                .orElse(null);
+    }
+
+    private void saveTextFile(String content, String defaultName, String filterDesc, String filterExt) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Export");
+        chooser.setInitialFileName(defaultName);
+        chooser.setInitialDirectory(AppConfig.getLastOpenedDir());
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter(filterDesc, filterExt),
+                new FileChooser.ExtensionFilter("All Files", "*.*"));
+        File dest = chooser.showSaveDialog(primaryStage);
+        if (dest == null) return;
+        try {
+            Files.writeString(dest.toPath(), content);
+            AppConfig.setLastOpenedDir(dest);
+            setStatus("Exported: " + dest.getName());
+        } catch (Exception e) {
+            showError("Export Failed", e.getMessage());
+        }
+    }
+
+    private void exportWholeJar(VineflowerDecompiler decompiler) {
+        if (decompiler == null) return;
+        String zipName = decompiler.getJarFile().getName().replaceAll("\\.jar$", "") + "-sources.zip";
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Export JAR as ZIP");
+        chooser.setInitialFileName(zipName);
+        chooser.setInitialDirectory(AppConfig.getLastOpenedDir());
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("ZIP Files", "*.zip"),
+                new FileChooser.ExtensionFilter("All Files", "*.*"));
+        File dest = chooser.showSaveDialog(primaryStage);
+        if (dest == null) return;
+
+        AppConfig.setLastOpenedDir(dest);
+        Set<String> classNames = decompiler.getClassNames();
+
+        ProgressBar bar = new ProgressBar(0);
+        bar.setPrefWidth(300);
+        Label lbl = new Label("Preparing…");
+        VBox content = new VBox(8, lbl, bar);
+        content.setPadding(new Insets(16));
+        content.setAlignment(Pos.CENTER_LEFT);
+
+        Dialog<Void> progress = new Dialog<>();
+        progress.initOwner(primaryStage);
+        progress.setTitle("Exporting " + decompiler.getJarFile().getName());
+        progress.setHeaderText(null);
+        progress.getDialogPane().setContent(content);
+
+        Thread worker = new Thread(() -> {
+            int total = classNames.size();
+            int done = 0;
+            try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(dest.toPath()))) {
+                for (String cls : classNames) {
+                    final String current = cls;
+                    final int pct = done;
+                    Platform.runLater(() -> {
+                        lbl.setText("Decompiling: " + current.replace('/', '.'));
+                        bar.setProgress((double) pct / total);
+                    });
+                    String src;
+                    try { src = decompiler.decompile(cls); } catch (Exception ex) {
+                        src = "// Decompilation failed for: " + cls + "\n// " + ex.getMessage();
+                    }
+                    String entryName = cls + ".java";
+                    zos.putNextEntry(new ZipEntry(entryName));
+                    zos.write(src.getBytes(StandardCharsets.UTF_8));
+                    zos.closeEntry();
+                    done++;
+                }
+            } catch (Exception ex) {
+                Platform.runLater(() -> showError("Export Failed", ex.getMessage()));
+            }
+            final int finalDone = done;
+            Platform.runLater(() -> {
+                progress.close();
+                setStatus("Exported " + finalDone + " classes to " + dest.getName());
+            });
+        }, "jar-exporter");
+        worker.setDaemon(true);
+        worker.start();
+
+        progress.showAndWait();
     }
 
     private String tabKey(JarNode node) {
