@@ -19,6 +19,7 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckMenuItem;
+import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
@@ -56,6 +57,7 @@ import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import org.bsdevelopment.codefracture.AppConfig;
 import org.bsdevelopment.codefracture.BuildInfo;
+import org.bsdevelopment.codefracture.decompiler.ObfuscationDetector;
 import org.bsdevelopment.codefracture.decompiler.VineflowerDecompiler;
 import org.bsdevelopment.codefracture.model.JarNode;
 import org.bsdevelopment.codefracture.ui.CodeTab;
@@ -98,6 +100,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
@@ -108,6 +111,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 public class MainController {
 
@@ -128,6 +133,7 @@ public class MainController {
     private final Label statusLabel;
     private final Label coordsLabel;
     private final ProgressBar progressBar;
+    private final HBox obfBanner;
 
     private final Map<String, VineflowerDecompiler> decompilers = new LinkedHashMap<>();
     private final Map<String, VineflowerDecompiler> compareDecompilers = new ConcurrentHashMap<>();
@@ -170,7 +176,13 @@ public class MainController {
         statusBar.setAlignment(Pos.CENTER_LEFT);
         statusBar.setSpacing(6);
         statusBar.setPadding(new Insets(4, 10, 4, 10));
-        mainPane.setBottom(statusBar);
+
+        obfBanner = buildObfBanner();
+        obfBanner.setVisible(false);
+        obfBanner.setManaged(false);
+
+        VBox bottomArea = new VBox(obfBanner, statusBar);
+        mainPane.setBottom(bottomArea);
 
         dragOverlay = buildDragOverlay();
         dragOverlay.setVisible(false);
@@ -202,18 +214,10 @@ public class MainController {
         buttons.setAlignment(Pos.CENTER_RIGHT);
         buttons.setPadding(new Insets(2, 8, 2, 8));
 
-        Button configFolderBtn = new Button("Open Config Folder");
-        configFolderBtn.setGraphic(new FontIcon(MaterialDesignF.FOLDER));
-        configFolderBtn.setOnAction(e -> {
-            try {
-                Desktop.getDesktop().open(AppConfig.getConfigDir().toFile());
-            } catch (Exception ex) { /* ignore */ }
-        });
-
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox topBar = new HBox(menuBar, configFolderBtn, spacer, buttons);
+        HBox topBar = new HBox(menuBar, spacer, buttons);
         topBar.setAlignment(Pos.CENTER_LEFT);
         topBar.getStyleClass().add("menu-bar");
         return topBar;
@@ -240,6 +244,33 @@ public class MainController {
                         "-fx-border-style: segments(18, 9);"
         );
         return overlay;
+    }
+
+    private HBox buildObfBanner() {
+        Label msg = new Label();
+        msg.setStyle("-fx-text-fill: -color-warning-fg;");
+        HBox.setHgrow(msg, Priority.ALWAYS);
+
+        Button dismiss = new Button("Dismiss");
+        dismiss.getStyleClass().add("small");
+        dismiss.setOnAction(e -> {
+            obfBanner.setVisible(false);
+            obfBanner.setManaged(false);
+        });
+
+        HBox banner = new HBox(8, msg, dismiss);
+        banner.setAlignment(Pos.CENTER);
+        banner.setPadding(new Insets(4, 10, 4, 10));
+        banner.setStyle("-fx-background-color: -color-warning-subtle; -fx-border-color: -color-warning-emphasis; -fx-border-width: 0 0 1 0;");
+        banner.setUserData(msg);
+        return banner;
+    }
+
+    private void showObfBanner(String jarName) {
+        Label msg = (Label) obfBanner.getUserData();
+        msg.setText("\"" + jarName + "\" appears to be obfuscated — class names may not be meaningful.");
+        obfBanner.setVisible(true);
+        obfBanner.setManaged(true);
     }
 
     private void setupDragAndDrop() {
@@ -505,6 +536,14 @@ public class MainController {
             collectSearchableNodes(jarRoot);
             updateTitle();
             setStatus("Loaded: " + file.getName());
+
+            Thread obfCheck = new Thread(() -> {
+                if (ObfuscationDetector.isObfuscated(file)) {
+                    Platform.runLater(() -> showObfBanner(file.getName()));
+                }
+            }, "obf-detector");
+            obfCheck.setDaemon(true);
+            obfCheck.start();
         });
         task.setOnFailed(e -> {
             decompilers.remove(key);

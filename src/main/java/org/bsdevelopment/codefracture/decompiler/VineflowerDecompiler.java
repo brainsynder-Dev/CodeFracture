@@ -62,6 +62,10 @@ public class VineflowerDecompiler {
         return getClassIndex().contains(internalName);
     }
 
+    public Set<String> getClassNames() {
+        return java.util.Collections.unmodifiableSet(getClassIndex());
+    }
+
     /**
      * Decompiles the given class from the JAR and returns its Java source.
      * The result is cached after the first call.
