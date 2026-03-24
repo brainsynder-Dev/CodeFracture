@@ -16,6 +16,8 @@ import javafx.stage.Screen;
 import javafx.stage.Stage;
 import org.bsdevelopment.codefracture.controller.MainController;
 
+import java.awt.*;
+
 public class CodeFractureApp extends Application {
 
     private static final double MAIN_W = 1280;
@@ -44,9 +46,9 @@ public class CodeFractureApp extends Application {
 
         setupMainWindow(primaryStage);
 
-        Rectangle2D screen = Screen.getPrimary().getVisualBounds();
-        primaryStage.setX((screen.getWidth() - MAIN_W) / 2.0);
-        primaryStage.setY((screen.getHeight() - MAIN_H) / 2.0);
+        Rectangle2D screen = screenContainingCursor().getVisualBounds();
+        primaryStage.setX(screen.getMinX() + (screen.getWidth() - MAIN_W) / 2.0);
+        primaryStage.setY(screen.getMinY() + (screen.getHeight() - MAIN_H) / 2.0);
 
         boolean skipSplash = Boolean.parseBoolean(AppConfig.get(AppConfig.SKIP_SPLASH, "false"));
         if (skipSplash) {
@@ -54,6 +56,18 @@ public class CodeFractureApp extends Application {
         } else {
             new SplashScreen().show(primaryStage::show);
         }
+    }
+
+    private static Screen screenContainingCursor() {
+        try {
+            Point p = MouseInfo.getPointerInfo().getLocation();
+            double x = p.x, y = p.y;
+            return Screen.getScreens().stream()
+                    .filter(s -> s.getBounds().contains(x, y))
+                    .findFirst()
+                    .orElse(Screen.getPrimary());
+        } catch (Exception ignored) {}
+        return Screen.getPrimary();
     }
 
     private void setupMainWindow(Stage primaryStage) {
