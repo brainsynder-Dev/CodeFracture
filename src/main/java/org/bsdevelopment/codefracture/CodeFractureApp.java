@@ -71,6 +71,13 @@ public class CodeFractureApp extends Application {
         }
     }
 
+    public static String syntaxColorSheet(String themeName) {
+        String file = themeName.contains("Light")
+                ? "/org/bsdevelopment/codefracture/syntax-colors-light.css"
+                : "/org/bsdevelopment/codefracture/syntax-colors-dark.css";
+        return CodeFractureApp.class.getResource(file).toExternalForm();
+    }
+
     private void setupMainWindow(Stage primaryStage) {
         try (var stream = getClass().getResourceAsStream("/logo_256.png")) {
             if (stream != null) primaryStage.getIcons().add(new Image(stream));
@@ -80,6 +87,9 @@ public class CodeFractureApp extends Application {
         MainController controller = new MainController(primaryStage);
         Scene scene = new Scene(controller.getRoot(), MAIN_W, MAIN_H);
         scene.getStylesheets().add(getClass().getResource("/org/bsdevelopment/codefracture/syntax.css").toExternalForm());
+
+        String themeName = AppConfig.get(AppConfig.THEME, "Nord Dark");
+        scene.getStylesheets().add(syntaxColorSheet(themeName));
 
         primaryStage.setTitle("CodeFracture — Java Decompiler");
         primaryStage.setScene(scene);

@@ -57,6 +57,7 @@ import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import org.bsdevelopment.codefracture.AppConfig;
 import org.bsdevelopment.codefracture.BuildInfo;
+import org.bsdevelopment.codefracture.CodeFractureApp;
 import org.bsdevelopment.codefracture.decompiler.ObfuscationDetector;
 import org.bsdevelopment.codefracture.decompiler.VineflowerDecompiler;
 import org.bsdevelopment.codefracture.model.JarNode;
@@ -408,6 +409,7 @@ public class MainController {
             item.setOnAction(e -> {
                 Application.setUserAgentStylesheet(theme.getUserAgentStylesheet());
                 AppConfig.set(AppConfig.THEME, theme.getName());
+                applySyntaxColors(theme.getName());
             });
             viewMenu.getItems().add(item);
         }
@@ -1120,6 +1122,12 @@ public class MainController {
 
     private void setStatus(String msg) {
         Platform.runLater(() -> statusLabel.setText(msg));
+    }
+
+    private void applySyntaxColors(String themeName) {
+        var sheets = primaryStage.getScene().getStylesheets();
+        sheets.removeIf(s -> s.contains("syntax-colors-"));
+        sheets.add(CodeFractureApp.syntaxColorSheet(themeName));
     }
 
     private void applyAppIcons(Dialog<?> dialog) {

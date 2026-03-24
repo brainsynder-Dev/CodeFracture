@@ -31,29 +31,16 @@
 }
 
 .code-area .keyword {
-    -fx-fill: #9966cc;
     -fx-font-weight: bold;
 }
 
-.code-area .string {
-    -fx-fill: #3a9d4e;
-}
-
 .code-area .comment {
-    -fx-fill: #7d8590;
     -fx-font-style: italic;
 }
 
-.code-area .annotation {
-    -fx-fill: #c07128;
-}
-
-.code-area .number {
-    -fx-fill: #0d7377;
-}
-
-.code-area .classref {
-    -fx-fill: #2166a0;
+.code-area .import-unavailable {
+    -fx-fill: -color-fg-muted;
+    -fx-font-style: italic;
 }
 
 .code-area .lineno {
@@ -71,26 +58,6 @@
 .jar-tree .tree-cell .ikonli-font-icon {
     -fx-icon-size: 14;
     -fx-icon-color: -color-accent-fg;
-}
-
-.code-area .diff-header {
-    -fx-fill: #79c0ff;
-    -fx-font-weight: bold;
-}
-
-.code-area .diff-hunk {
-    -fx-fill: #d2a8ff;
-    -fx-font-style: italic;
-}
-
-.code-area .diff-added {
-    -fx-fill: #56d364;
-    -rtfx-background-color: rgba(46, 160, 67, 0.18);
-}
-
-.code-area .diff-removed {
-    -fx-fill: #f85149;
-    -rtfx-background-color: rgba(248, 81, 73, 0.18);
 }
 
 .tree-search-icon {
@@ -175,13 +142,4 @@
     -fx-font-size: 12px;
     -fx-min-width: 32px;
     -fx-alignment: center-right;
-}
-
-.code-area .import-available {
-    -fx-fill: #79c0ff;
-}
-
-.code-area .import-unavailable {
-    -fx-fill: -color-fg-muted;
-    -fx-font-style: italic;
 }

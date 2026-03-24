@@ -1,0 +1,15 @@
+/* Syntax token colors for dark themes (Dracula, Nord Dark, Primer Dark, Cupertino Dark) */
+
+.code-area .keyword    { -fx-fill: #c792ea; }
+.code-area .string     { -fx-fill: #c3e88d; }
+.code-area .comment    { -fx-fill: #637777; }
+.code-area .annotation { -fx-fill: #ffcb6b; }
+.code-area .number     { -fx-fill: #f78c6c; }
+.code-area .classref   { -fx-fill: #82aaff; }
+
+.code-area .import-available { -fx-fill: #89ddff; }
+
+.code-area .diff-header  { -fx-fill: #89ddff; -fx-font-weight: bold; }
+.code-area .diff-hunk    { -fx-fill: #c792ea; -fx-font-style: italic; }
+.code-area .diff-added   { -fx-fill: #c3e88d; -rtfx-background-color: rgba(46, 160, 67, 0.18); }
+.code-area .diff-removed { -fx-fill: #f07178; -rtfx-background-color: rgba(248, 81, 73, 0.18); }

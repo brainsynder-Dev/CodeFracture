@@ -1,0 +1,31 @@
+/* Syntax token colors for light themes (Nord Light, Primer Light, Cupertino Light).
+   Also softens the code area background to reduce eye strain on bright displays. */
+
+.code-area,
+.code-area .content,
+.code-scroll-pane {
+    -fx-background-color: #f6f8fa;
+    -fx-background: #f6f8fa;
+}
+
+.code-area .text {
+    -fx-fill: #24292f;
+}
+
+.code-area .paragraph-box:has-caret {
+    -fx-background-color: #eaeef2;
+}
+
+.code-area .keyword    { -fx-fill: #cf222e; }
+.code-area .string     { -fx-fill: #0a6b28; }
+.code-area .comment    { -fx-fill: #6e7781; }
+.code-area .annotation { -fx-fill: #953800; }
+.code-area .number     { -fx-fill: #0550ae; }
+.code-area .classref   { -fx-fill: #6639ba; }
+
+.code-area .import-available { -fx-fill: #0550ae; }
+
+.code-area .diff-header  { -fx-fill: #0550ae; -fx-font-weight: bold; }
+.code-area .diff-hunk    { -fx-fill: #6639ba; -fx-font-style: italic; }
+.code-area .diff-added   { -fx-fill: #116329; -rtfx-background-color: rgba(52, 208, 88, 0.22); }
+.code-area .diff-removed { -fx-fill: #a40e26; -rtfx-background-color: rgba(215, 58, 73, 0.16); }
