@@ -1,6 +1,5 @@
 package org.bsdevelopment.codefracture.decompiler;
 
-import org.bsdevelopment.codefracture.AppConfig;
 import org.jetbrains.java.decompiler.main.decompiler.BaseDecompiler;
 import org.jetbrains.java.decompiler.main.extern.IFernflowerLogger;
 import org.jetbrains.java.decompiler.main.extern.IFernflowerPreferences;
@@ -30,23 +29,9 @@ public class VineflowerDecompiler {
     private final Map<String, String> cache = new ConcurrentHashMap<>();
     private final Map<String, Object> locks = new ConcurrentHashMap<>();
     private Set<String> classIndex;
-    private boolean showComments;
 
     public VineflowerDecompiler(File jarFile) {
         this.jarFile = jarFile;
-        this.showComments = Boolean.parseBoolean(AppConfig.get(AppConfig.SHOW_COMMENTS, "false"));
-    }
-
-    public boolean isShowComments() {
-        return showComments;
-    }
-
-    public void setShowComments(boolean showComments) {
-        if (this.showComments != showComments) {
-            this.showComments = showComments;
-            cache.clear();
-            locks.clear();
-        }
     }
 
     public File getJarFile() {
@@ -105,7 +90,6 @@ public class VineflowerDecompiler {
                 options.put(IFernflowerPreferences.REMOVE_BRIDGE, "1");
                 options.put(IFernflowerPreferences.LITERALS_AS_IS, "0");
                 options.put(IFernflowerPreferences.DECOMPILE_INNER, "1");
-                options.put("dc", showComments ? "1" : "0");
 
                 BaseDecompiler decompiler = new BaseDecompiler(saver, options, new QuietLogger());
                 decompiler.addSource(tempInput.toFile());

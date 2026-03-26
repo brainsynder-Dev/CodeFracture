@@ -428,40 +428,7 @@ public class MainController {
         skipSplashItem.setOnAction(
                 e -> AppConfig.set(AppConfig.SKIP_SPLASH, String.valueOf(skipSplashItem.isSelected())));
 
-        CheckMenuItem showCommentsItem = new CheckMenuItem("Show Decompiler Comments");
-        showCommentsItem.setSelected(
-                Boolean.parseBoolean(AppConfig.get(AppConfig.SHOW_COMMENTS, "false")));
-        showCommentsItem.setOnAction(e -> {
-            boolean enabled = showCommentsItem.isSelected();
-            AppConfig.set(AppConfig.SHOW_COMMENTS, String.valueOf(enabled));
-            decompilers.values().forEach(d -> d.setShowComments(enabled));
-            new ArrayList<>(openTabs.entrySet()).forEach(entry -> {
-                if (!(entry.getValue() instanceof CodeTab ct) || ct.isResource()) return;
-                String key = entry.getKey();
-                String jarPath = key.contains("!") ? key.substring(0, key.lastIndexOf('!')) : null;
-                String cls = key.contains("!") ? key.substring(key.lastIndexOf('!') + 1) : null;
-                if (jarPath == null || cls == null) return;
-                VineflowerDecompiler d = decompilers.get(jarPath);
-                if (d == null) return;
-                setStatus("Re-decompiling " + ct.getText() + "…");
-                Task<String> task = new Task<>() {
-                    @Override
-                    protected String call() throws Exception {
-                        return d.decompile(cls);
-                    }
-                };
-                task.setOnSucceeded(ev -> {
-                    ct.setCode(task.getValue());
-                    setStatus("Ready");
-                });
-                task.setOnFailed(ev -> setStatus("Ready"));
-                Thread t = new Thread(task, "redecompile-" + ct.getText());
-                t.setDaemon(true);
-                t.start();
-            });
-        });
-
-        settingsMenu.getItems().addAll(skipSplashItem, showCommentsItem);
+        settingsMenu.getItems().add(skipSplashItem);
 
         Menu helpMenu = new Menu("_Help");
         MenuItem checkUpdates = new MenuItem("Check for Updates…");
