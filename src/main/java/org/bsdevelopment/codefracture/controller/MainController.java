@@ -110,6 +110,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -1593,7 +1594,27 @@ public class MainController {
                     progressBar.setManaged(true);
                 });
 
+                // Pre-build the entire package tree and compact it before the pool starts.
+                // Pool tasks then only ever add leaf nodes, keeping pkgMap valid throughout.
+                Set<String> allPkgPaths = new HashSet<>();
+                for (String cls : onlyInA) if (cls.contains("/")) allPkgPaths.add(cls.substring(0, cls.lastIndexOf('/')));
+                for (String cls : onlyInB) if (cls.contains("/")) allPkgPaths.add(cls.substring(0, cls.lastIndexOf('/')));
+                for (String cls : common)  if (cls.contains("/")) allPkgPaths.add(cls.substring(0, cls.lastIndexOf('/')));
+
                 Map<String, TreeItem<JarNode>> pkgMap = new HashMap<>();
+
+                CountDownLatch pkgLatch = new CountDownLatch(1);
+                Platform.runLater(() -> {
+                    try {
+                        allPkgPaths.forEach(pkg -> ensureComparePackage(compRoot, pkgMap, pkg));
+                        sortTree(compRoot);
+                        compactPackages(compRoot);
+                        rebuildPkgMap(compRoot, pkgMap);
+                    } finally {
+                        pkgLatch.countDown();
+                    }
+                });
+                pkgLatch.await();
 
                 int threads = Math.min(Runtime.getRuntime().availableProcessors(), 8);
                 ExecutorService pool = Executors.newFixedThreadPool(threads, r -> {
@@ -1682,8 +1703,6 @@ public class MainController {
                 pool.shutdown();
                 pool.awaitTermination(10, TimeUnit.MINUTES);
 
-                // compareJobs.remove returns non-null only if closeJar hasn't already removed it,
-                // meaning the comparison completed naturally rather than being cancelled.
                 if (compareJobs.remove(rootPath) != null) {
                     Platform.runLater(() -> {
                         progressBar.setVisible(false);
@@ -1754,6 +1773,32 @@ public class MainController {
         parent.getChildren().add(item);
         map.put(pkgPath, item);
         return item;
+    }
+
+    // Rebuilds pkgMap after compactPackages() so every absorbed intermediate path
+    // (e.g. "net", "net/minecraft") maps to the surviving compacted item.
+    private static void rebuildPkgMap(TreeItem<JarNode> root, Map<String, TreeItem<JarNode>> pkgMap) {
+        pkgMap.clear();
+        root.getChildren().forEach(child -> rebuildPkgMapRecursive(child, pkgMap));
+    }
+
+    private static void rebuildPkgMapRecursive(TreeItem<JarNode> item, Map<String, TreeItem<JarNode>> pkgMap) {
+        JarNode node = item.getValue();
+        if (node == null || node.getType() != JarNode.Type.PACKAGE) return;
+
+        String[] pathParts = node.getFullPath().split("/");
+        // A compacted name like "net.minecraft.world" covers all path segments it absorbed,
+        // so map every prefix at or above the start of the compacted span to this item.
+        int startDepth = pathParts.length - node.getName().split("\\.", -1).length + 1;
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < pathParts.length; i++) {
+            if (i > 0) sb.append('/');
+            sb.append(pathParts[i]);
+            if (i + 1 >= startDepth) pkgMap.put(sb.toString(), item);
+        }
+
+        item.getChildren().forEach(child -> rebuildPkgMapRecursive(child, pkgMap));
     }
 
     /** Walks the comparison tree post-order and colors packages that are all-added or all-removed. */
