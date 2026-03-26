@@ -143,6 +143,7 @@ public class MainController {
 
     private final Map<String, VineflowerDecompiler> decompilers = new LinkedHashMap<>();
     private final Map<String, VineflowerDecompiler> compareDecompilers = new ConcurrentHashMap<>();
+    private final Map<String, ExecutorService> compareJobs = new ConcurrentHashMap<>();
     private final Map<String, Tab> openTabs = new HashMap<>();
     private final Map<String, TreeItem<JarNode>> jarRoots = new LinkedHashMap<>();
     private final List<JarNode> searchableNodes = new ArrayList<>();
@@ -883,6 +884,13 @@ public class MainController {
                 compareDecompilers.remove(parts.substring(0, sep));
                 compareDecompilers.remove(parts.substring(sep + 3));
             }
+            ExecutorService job = compareJobs.remove(jarPath);
+            if (job != null) {
+                job.shutdownNow();
+                progressBar.setVisible(false);
+                progressBar.setManaged(false);
+                setStatus("Ready");
+            }
         } else {
             VineflowerDecompiler d = decompilers.remove(jarPath);
             if (d != null) d.clearCache();
@@ -1621,12 +1629,19 @@ public class MainController {
                 Map<String, TreeItem<JarNode>> pkgMap = new HashMap<>();
 
                 int threads = Math.min(Runtime.getRuntime().availableProcessors(), 8);
-                ExecutorService pool = Executors.newFixedThreadPool(threads);
+                ExecutorService pool = Executors.newFixedThreadPool(threads, r -> {
+                    Thread th = new Thread(r, "jar-compare-worker");
+                    th.setDaemon(true);
+                    return th;
+                });
+                compareJobs.put(rootPath, pool);
 
                 for (String cls : onlyInA) {
                     pool.submit(() -> {
+                        if (Thread.currentThread().isInterrupted()) return;
                         int d = done.incrementAndGet();
                         Platform.runLater(() -> {
+                            if (!compareJobs.containsKey(rootPath)) return;
                             addCompareLeaf(cls, JarNode.DiffStatus.REMOVED,
                                     jarA, null, compRoot, pkgMap, rootPath);
                             progressBar.setProgress((double) d / total);
@@ -1636,8 +1651,10 @@ public class MainController {
                 }
                 for (String cls : onlyInB) {
                     pool.submit(() -> {
+                        if (Thread.currentThread().isInterrupted()) return;
                         int d = done.incrementAndGet();
                         Platform.runLater(() -> {
+                            if (!compareJobs.containsKey(rootPath)) return;
                             addCompareLeaf(cls, JarNode.DiffStatus.ADDED,
                                     null, jarB, compRoot, pkgMap, rootPath);
                             progressBar.setProgress((double) d / total);
@@ -1647,6 +1664,7 @@ public class MainController {
                 }
                 for (String cls : common) {
                     pool.submit(() -> {
+                        if (Thread.currentThread().isInterrupted()) return;
                         try {
                             CompletableFuture<String> fa = CompletableFuture.supplyAsync(() -> {
                                 try {
@@ -1668,6 +1686,7 @@ public class MainController {
                             int d = done.incrementAndGet();
                             if (changed) {
                                 Platform.runLater(() -> {
+                                    if (!compareJobs.containsKey(rootPath)) return;
                                     addCompareLeaf(cls, JarNode.DiffStatus.CHANGED,
                                             jarA, jarB, compRoot, pkgMap, rootPath);
                                     progressBar.setProgress((double) d / total);
@@ -1675,6 +1694,7 @@ public class MainController {
                                 });
                             } else {
                                 Platform.runLater(() -> {
+                                    if (!compareJobs.containsKey(rootPath)) return;
                                     progressBar.setProgress((double) d / total);
                                     setStatus("Comparing: " + d + "/" + total);
                                 });
@@ -1682,6 +1702,7 @@ public class MainController {
                         } catch (Exception ignored) {
                             int d = done.incrementAndGet();
                             Platform.runLater(() -> {
+                                if (!compareJobs.containsKey(rootPath)) return;
                                 addCompareLeaf(cls, JarNode.DiffStatus.CHANGED,
                                         jarA, jarB, compRoot, pkgMap, rootPath);
                                 progressBar.setProgress((double) d / total);
@@ -1694,16 +1715,21 @@ public class MainController {
                 pool.shutdown();
                 pool.awaitTermination(10, TimeUnit.MINUTES);
 
-                Platform.runLater(() -> {
-                    progressBar.setVisible(false);
-                    progressBar.setManaged(false);
-                    sortTree(compRoot);
-                    updatePackageColors(compRoot);
-                    collectSearchableNodes(compRoot);
-                    setStatus("Comparison complete: " + rootName);
-                });
+                // compareJobs.remove returns non-null only if closeJar hasn't already removed it,
+                // meaning the comparison completed naturally rather than being cancelled.
+                if (compareJobs.remove(rootPath) != null) {
+                    Platform.runLater(() -> {
+                        progressBar.setVisible(false);
+                        progressBar.setManaged(false);
+                        sortTree(compRoot);
+                        updatePackageColors(compRoot);
+                        collectSearchableNodes(compRoot);
+                        setStatus("Comparison complete: " + rootName);
+                    });
+                }
 
             } catch (Exception e) {
+                compareJobs.remove(rootPath);
                 Platform.runLater(() -> {
                     progressBar.setVisible(false);
                     progressBar.setManaged(false);
