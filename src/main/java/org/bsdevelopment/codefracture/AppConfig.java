@@ -22,10 +22,13 @@ import java.util.Properties;
  */
 public final class AppConfig {
 
-    public static final String LAST_OPENED_DIR = "last.opened.dir";
-    public static final String THEME = "app.theme";
-    public static final String SKIP_SPLASH = "skip.splash";
-    public static final String SHOW_COMMENTS = "decompile.comments";
+    public static final String LAST_OPENED_DIR      = "last.opened.dir";
+    public static final String THEME                = "app.theme";
+    public static final String SKIP_SPLASH          = "skip.splash";
+    public static final String SHOW_COMMENTS        = "decompile.comments";
+    public static final String DIFF_FILTER_ENABLED  = "diff.filter.enabled";
+    /** Pipe-separated list of class/package patterns for the diff filter. */
+    public static final String DIFF_FILTER_PATTERNS = "diff.filter.patterns";
 
     private static final Path CONFIG_DIR;
     private static final Path CONFIG_FILE;

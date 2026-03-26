@@ -18,6 +18,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.ContextMenu;
@@ -37,6 +38,7 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Tooltip;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
@@ -62,6 +64,7 @@ import org.bsdevelopment.codefracture.decompiler.ObfuscationDetector;
 import org.bsdevelopment.codefracture.decompiler.VineflowerDecompiler;
 import org.bsdevelopment.codefracture.model.JarNode;
 import org.bsdevelopment.codefracture.ui.CodeTab;
+import org.bsdevelopment.codefracture.ui.DiffFilterDialog;
 import org.bsdevelopment.codefracture.ui.DiffTab;
 import org.bsdevelopment.codefracture.ui.Differ;
 import org.bsdevelopment.codefracture.utils.PasteClient;
@@ -94,6 +97,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -112,6 +116,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -1433,7 +1438,7 @@ public class MainController {
         dialog.setTitle("Compare JARs");
         dialog.setHeaderText("Select two JAR files to compare");
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-        dialog.getDialogPane().setPrefWidth(460);
+        dialog.getDialogPane().setPrefWidth(480);
 
         File[] jarA = { null }, jarB = { null };
         Label lblA = new Label("(none selected)"), lblB = new Label("(none selected)");
@@ -1460,17 +1465,11 @@ public class MainController {
         btnB.setMaxWidth(Double.MAX_VALUE);
         btnA.setOnAction(e -> {
             File f = pickJarFile("Select JAR A (original)");
-            if (f != null) {
-                jarA[0] = f;
-                lblA.setText(f.getName());
-            }
+            if (f != null) { jarA[0] = f; lblA.setText(f.getName()); }
         });
         btnB.setOnAction(e -> {
             File f = pickJarFile("Select JAR B (modified)");
-            if (f != null) {
-                jarB[0] = f;
-                lblB.setText(f.getName());
-            }
+            if (f != null) { jarB[0] = f; lblB.setText(f.getName()); }
         });
 
         GridPane grid = new GridPane();
@@ -1485,7 +1484,42 @@ public class MainController {
         grid.getColumnConstraints().addAll(new ColumnConstraints(), c1);
         grid.setPadding(new Insets(4));
 
-        dialog.getDialogPane().setContent(grid);
+        String rawPatterns = AppConfig.get(AppConfig.DIFF_FILTER_PATTERNS, "").trim();
+        @SuppressWarnings("unchecked")
+        List<String>[] filterRef = new List[]{ rawPatterns.isEmpty() ? new ArrayList<>() :
+                Arrays.stream(rawPatterns.split("\\|"))
+                        .map(String::trim).filter(s -> !s.isEmpty())
+                        .collect(Collectors.toCollection(ArrayList::new)) };
+
+        CheckBox filterCheck = new CheckBox("Enable class/package filter");
+        filterCheck.setSelected(AppConfig.get(AppConfig.DIFF_FILTER_ENABLED, "false").equals("true"));
+        filterCheck.setTooltip(new Tooltip("Only compare classes matching the configured patterns"));
+        filterCheck.selectedProperty().addListener((obs, wasOn, isOn) ->
+                AppConfig.set(AppConfig.DIFF_FILTER_ENABLED, String.valueOf(isOn)));
+
+        Label patternCountLabel = new Label(describeFilterPatterns(filterRef[0]));
+        patternCountLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: -color-fg-muted;");
+
+        Button configurePatternsBtn = new Button("Configure…");
+        configurePatternsBtn.setTooltip(new Tooltip("Set which packages or classes to include in the comparison"));
+        configurePatternsBtn.setOnAction(e -> {
+            DiffFilterDialog filterDialog = new DiffFilterDialog(filterRef[0]);
+            filterDialog.initOwner(primaryStage);
+            filterDialog.showAndWait().ifPresent(patterns -> {
+                filterRef[0] = patterns;
+                AppConfig.set(AppConfig.DIFF_FILTER_PATTERNS, String.join("|", patterns));
+                patternCountLabel.setText(describeFilterPatterns(patterns));
+            });
+        });
+
+        Region filterSpacer = new Region();
+        HBox.setHgrow(filterSpacer, Priority.ALWAYS);
+        HBox filterRow = new HBox(8, filterCheck, filterSpacer, patternCountLabel, configurePatternsBtn);
+        filterRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox content = new VBox(10, grid, new Separator(), filterRow);
+        content.setPadding(new Insets(4, 4, 0, 4));
+        dialog.getDialogPane().setContent(content);
 
         dialog.showAndWait().ifPresent(bt -> {
             if (bt != ButtonType.OK) return;
@@ -1501,6 +1535,10 @@ public class MainController {
         });
     }
 
+    private static String describeFilterPatterns(List<String> patterns) {
+        return patterns.isEmpty() ? "No patterns configured" : patterns.size() + " pattern(s) configured";
+    }
+
     private File pickJarFile(String title) {
         FileChooser chooser = new FileChooser();
         chooser.setTitle(title);
@@ -1509,6 +1547,30 @@ public class MainController {
         File f = chooser.showOpenDialog(primaryStage);
         if (f != null) AppConfig.setLastOpenedDir(f);
         return f;
+    }
+
+    private static List<String> loadDiffFilterPatterns() {
+        String raw = AppConfig.get(AppConfig.DIFF_FILTER_PATTERNS, "").trim();
+        if (raw.isEmpty()) return List.of();
+        return Arrays.stream(raw.split("\\|"))
+                .map(String::trim).filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+    }
+
+    private static boolean matchesDiffFilter(String internalName, List<String> patterns) {
+        String slashName = internalName.replace('.', '/');
+        String simpleName = slashName.contains("/")
+                ? slashName.substring(slashName.lastIndexOf('/') + 1) : slashName;
+        for (String raw : patterns) {
+            String pattern = raw.trim().replace('.', '/');
+            if (pattern.isEmpty()) continue;
+            if (pattern.contains("/")) {
+                if (slashName.startsWith(pattern)) return true;
+            } else {
+                if (simpleName.startsWith(pattern)) return true;
+            }
+        }
+        return false;
     }
 
     private void startCompareJars(File jarA, File jarB) {
@@ -1531,6 +1593,14 @@ public class MainController {
             try {
                 Set<String> classesA = listClasses(jarA);
                 Set<String> classesB = listClasses(jarB);
+
+                if (AppConfig.get(AppConfig.DIFF_FILTER_ENABLED, "false").equals("true")) {
+                    List<String> patterns = loadDiffFilterPatterns();
+                    if (!patterns.isEmpty()) {
+                        classesA.removeIf(cls -> !matchesDiffFilter(cls, patterns));
+                        classesB.removeIf(cls -> !matchesDiffFilter(cls, patterns));
+                    }
+                }
 
                 Set<String> onlyInA = new HashSet<>(classesA);
                 onlyInA.removeAll(classesB);
